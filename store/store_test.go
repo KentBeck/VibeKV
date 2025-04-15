@@ -60,9 +60,17 @@ func TestDelete(t *testing.T) {
 	if err != ErrKeyNotFound {
 		t.Errorf("Expected ErrKeyNotFound, but got: %v", err)
 	}
+}
 
-	// Test deleting a non-existent key
-	err = store.Delete(uint64(999))
+func TestDeleteNonExistentKey(t *testing.T) {
+	// Create a new in-memory store
+	store := NewStore()
+
+	// Try to delete a non-existent key
+	nonExistentKey := uint64(999)
+	err := store.Delete(nonExistentKey)
+
+	// Verify an error is returned
 	if err == nil {
 		t.Errorf("Expected error when deleting non-existent key, but got nil")
 	}
