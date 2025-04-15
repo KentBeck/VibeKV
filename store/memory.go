@@ -10,14 +10,14 @@ var (
 	ErrKeyNotFound = errors.New("key not found")
 )
 
-// MemoryStore is an in-memory implementation of a key-value store
+// MemoryStore is an in-memory implementation of the Store interface
 type MemoryStore struct {
 	mu   sync.RWMutex
 	data map[uint64]uint64
 }
 
 // NewMemoryStore creates a new in-memory store
-func NewMemoryStore() *MemoryStore {
+func NewMemoryStore() Store {
 	return &MemoryStore{
 		data: make(map[uint64]uint64),
 	}
@@ -27,7 +27,7 @@ func NewMemoryStore() *MemoryStore {
 func (s *MemoryStore) Put(key uint64, value uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	s.data[key] = value
 	return nil
 }
@@ -36,12 +36,12 @@ func (s *MemoryStore) Put(key uint64, value uint64) error {
 func (s *MemoryStore) Get(key uint64) (uint64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	value, exists := s.data[key]
 	if !exists {
 		return 0, ErrKeyNotFound
 	}
-	
+
 	return value, nil
 }
 
@@ -49,11 +49,16 @@ func (s *MemoryStore) Get(key uint64) (uint64, error) {
 func (s *MemoryStore) Delete(key uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if _, exists := s.data[key]; !exists {
 		return ErrKeyNotFound
 	}
-	
+
 	delete(s.data, key)
+	return nil
+}
+
+// Close is a no-op for MemoryStore as it doesn't use external resources
+func (s *MemoryStore) Close() error {
 	return nil
 }

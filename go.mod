@@ -1,3 +1,3 @@
 module github.com/KentBeck/VibeKV
 
-go 1.16
+go 1.24.2
