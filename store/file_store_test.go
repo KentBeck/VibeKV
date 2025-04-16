@@ -6,12 +6,12 @@ import (
 	"testing"
 )
 
-// fileStoreFactory creates a new FileStore instance in a temporary directory
-func fileStoreFactory() Store {
+// createTempFileStore creates a new FileStore instance in a temporary directory
+func createTempFileStore(t *testing.T) (Store, func()) {
 	// Create a temporary directory for the test
 	tempDir, err := os.MkdirTemp("", "vibekv-test-*")
 	if err != nil {
-		panic(err)
+		t.Fatalf("Failed to create temporary directory: %v", err)
 	}
 
 	// Create a file store in the temporary directory
@@ -19,47 +19,44 @@ func fileStoreFactory() Store {
 	store, err := NewFileStore(filePath)
 	if err != nil {
 		os.RemoveAll(tempDir)
-		panic(err)
+		t.Fatalf("Failed to create file store: %v", err)
 	}
 
-	// Return a wrapped store that cleans up the temporary directory on close
-	return &cleanupStore{
-		Store:   store,
-		tempDir: tempDir,
+	// Return the store and a cleanup function
+	cleanup := func() {
+		store.Close()
+		os.RemoveAll(tempDir)
 	}
-}
 
-// cleanupStore wraps a Store and cleans up temporary files on close
-type cleanupStore struct {
-	Store
-	tempDir string
-}
-
-// Close closes the underlying store and cleans up temporary files
-func (s *cleanupStore) Close() error {
-	err := s.Store.Close()
-	os.RemoveAll(s.tempDir)
-	return err
+	return store, cleanup
 }
 
 // TestFileStorePut tests the Put operation for FileStore
 func TestFileStorePut(t *testing.T) {
-	TestPut(t, fileStoreFactory)
+	store, cleanup := createTempFileStore(t)
+	defer cleanup()
+	TestPut(t, store)
 }
 
 // TestFileStoreGet tests the Get operation for FileStore
 func TestFileStoreGet(t *testing.T) {
-	TestGet(t, fileStoreFactory)
+	store, cleanup := createTempFileStore(t)
+	defer cleanup()
+	TestGet(t, store)
 }
 
 // TestFileStoreDelete tests deleting an existing key for FileStore
 func TestFileStoreDelete(t *testing.T) {
-	TestDelete(t, fileStoreFactory)
+	store, cleanup := createTempFileStore(t)
+	defer cleanup()
+	TestDelete(t, store)
 }
 
 // TestFileStoreDeleteNonExistentKey tests deleting a non-existent key for FileStore
 func TestFileStoreDeleteNonExistentKey(t *testing.T) {
-	TestDeleteNonExistentKey(t, fileStoreFactory)
+	store, cleanup := createTempFileStore(t)
+	defer cleanup()
+	TestDeleteNonExistentKey(t, store)
 }
 
 // TestFileStoreRecovery tests that the store can recover its state from the transaction log
