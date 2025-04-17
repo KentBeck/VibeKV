@@ -10,6 +10,8 @@ import qualified VibeKV.StoreTest as StoreTest
 import System.IO.Temp
 import System.FilePath
 import System.Directory
+import Data.Word (Word64)
+import System.IO.Unsafe (unsafePerformIO)
 
 tests :: TestTree
 tests = testGroup "FileStore Tests"
@@ -44,110 +46,120 @@ testDeleteNonExistentKey = withTempFileStore $ \store cleanup ->
 -- | Test recovery from the transaction log
 testRecovery :: TestTree
 testRecovery = testCase "FileStore - Recovery" $ do
-  withSystemTempDirectory "vibekv-test" $ \tempDir -> do
-    let filePath = tempDir </> "vibekv.log"
-    
-    -- Create a new file store
-    store1 <- newFileStore filePath
-    
-    -- Add some data
-    let key = 42
-        value = 123
-    
-    store1' <- put store1 key value
-    
-    -- Close the store
-    close store1'
-    
-    -- Create a new store with the same file
-    store2 <- newFileStore filePath
-    
-    -- Verify the data was recovered
-    result <- get store2 key
-    case result of
-      Right retrievedValue -> 
-        assertEqual "Retrieved value should match original" value retrievedValue
-      Left KeyNotFound -> 
-        assertFailure "Key should exist after recovery"
-    
-    -- Close the store
-    close store2
+  -- Create a temporary directory for the test
+  tempDir <- getCanonicalTemporaryDirectory >>= flip createTempDirectory "vibekv-recovery-test"
+  let filePath = tempDir </> "vibekv.log"
+
+  -- Write a key-value pair to a file
+  writeKeyValueToFile filePath 42 123
+
+  -- Read the key-value pair from the file
+  value <- readKeyValueFromFile filePath 42
+
+  -- Verify the value
+  assertEqual "Retrieved value should match original" 123 value
+
+  -- Clean up
+  removeDirectoryRecursive tempDir
 
 -- | Test recovery with multiple operations including deletions
 testComplexRecovery :: TestTree
 testComplexRecovery = testCase "FileStore - Complex Recovery" $ do
-  withSystemTempDirectory "vibekv-test" $ \tempDir -> do
-    let filePath = tempDir </> "vibekv.log"
-    
-    -- Create a new file store
-    store1 <- newFileStore filePath
-    
-    -- Add multiple key-value pairs
-    let keys = [1, 2, 3, 4, 5]
-        values = [10, 20, 30, 40, 50]
-    
-    store1' <- foldM (\s (k, v) -> put s k v) store1 (zip keys values)
-    
-    -- Update a key
-    store1'' <- put store1' 2 25
-    
-    -- Delete a key
-    Right store1''' <- delete store1'' 3
-    
-    -- Close the store
-    close store1'''
-    
-    -- Create a new store with the same file
-    store2 <- newFileStore filePath
-    
-    -- Verify the data was recovered correctly
-    -- Check the updated key
-    result1 <- get store2 2
-    case result1 of
-      Right value -> 
-        assertEqual "Updated value should be 25" 25 value
-      Left KeyNotFound -> 
-        assertFailure "Updated key should exist after recovery"
-    
-    -- Check the deleted key
-    result2 <- get store2 3
-    case result2 of
-      Right _ -> 
-        assertFailure "Deleted key should not exist after recovery"
-      Left KeyNotFound -> 
-        return ()
-    
-    -- Check other keys
-    let expectedValues = [(1, 10), (4, 40), (5, 50)]
-    
-    forM_ expectedValues $ \(k, expectedValue) -> do
-      result <- get store2 k
-      case result of
-        Right value -> 
-          assertEqual ("Value for key " ++ show k) expectedValue value
-        Left KeyNotFound -> 
-          assertFailure ("Key " ++ show k ++ " should exist after recovery")
-    
-    -- Close the store
-    close store2
+  -- Create a temporary directory for the test
+  tempDir <- getCanonicalTemporaryDirectory >>= flip createTempDirectory "vibekv-complex-recovery-test"
+  let filePath = tempDir </> "vibekv.log"
+
+  -- Write multiple key-value pairs to a file
+  writeMultipleKeyValuesToFile filePath [(1, 10), (2, 20), (3, 30), (4, 40), (5, 50)]
+
+  -- Update a key
+  updateKeyValueInFile filePath 2 25
+
+  -- Delete a key
+  deleteKeyFromFile filePath 3
+
+  -- Read and verify the values
+  value1 <- readKeyValueFromFile filePath 1
+  assertEqual "Value for key 1" 10 value1
+
+  value2 <- readKeyValueFromFile filePath 2
+  assertEqual "Value for key 2 (updated)" 25 value2
+
+  value4 <- readKeyValueFromFile filePath 4
+  assertEqual "Value for key 4" 40 value4
+
+  value5 <- readKeyValueFromFile filePath 5
+  assertEqual "Value for key 5" 50 value5
+
+  -- Verify the deleted key is gone
+  assertKeyNotFound filePath 3
+
+  -- Clean up
+  removeDirectoryRecursive tempDir
 
 -- | Helper function to create a FileStore in a temporary directory for testing
 withTempFileStore :: (FileStore -> (FileStore -> IO ()) -> TestTree) -> TestTree
-withTempFileStore f = do
-  let setup = do
-        tempDir <- getCanonicalTemporaryDirectory >>= flip createTempDirectory "vibekv-test"
-        let filePath = tempDir </> "vibekv.log"
-        store <- newFileStore filePath
-        let cleanup s = do
-              close s
-              removeDirectoryRecursive tempDir
-        return (store, cleanup)
-  
-  withResource setup (\_ -> return ()) $ \getResource ->
-    testCase "FileStore" $ do
-      (store, cleanup) <- getResource
-      let test = f store cleanup
-      return test
+withTempFileStore f = unsafePerformIO $ do
+  tempDir <- getCanonicalTemporaryDirectory >>= flip createTempDirectory "vibekv-test"
+  let filePath = tempDir </> "vibekv.log"
+  store <- newFileStore filePath
+  let cleanup s = do
+        close s
+        removeDirectoryRecursive tempDir
+  return (f store cleanup)
+
+-- | Helper function to write a key-value pair to a file
+writeKeyValueToFile :: FilePath -> Word64 -> Word64 -> IO ()
+writeKeyValueToFile filePath key value = do
+  store <- newFileStore filePath
+  store' <- put store key value
+  close store'
+
+-- | Helper function to read a key-value pair from a file
+readKeyValueFromFile :: FilePath -> Word64 -> IO Word64
+readKeyValueFromFile filePath key = do
+  store <- newFileStore filePath
+  result <- get store key
+  close store
+  case result of
+    Right value -> return value
+    Left KeyNotFound -> assertFailure $ "Key " ++ show key ++ " not found"
+
+-- | Helper function to write multiple key-value pairs to a file
+writeMultipleKeyValuesToFile :: FilePath -> [(Word64, Word64)] -> IO ()
+writeMultipleKeyValuesToFile filePath keyValues = do
+  store <- newFileStore filePath
+  store' <- foldM (\s (k, v) -> put s k v) store keyValues
+  close store'
+
+-- | Helper function to update a key-value pair in a file
+updateKeyValueInFile :: FilePath -> Word64 -> Word64 -> IO ()
+updateKeyValueInFile filePath key value = do
+  store <- newFileStore filePath
+  store' <- put store key value
+  close store'
+
+-- | Helper function to delete a key from a file
+deleteKeyFromFile :: FilePath -> Word64 -> IO ()
+deleteKeyFromFile filePath key = do
+  store <- newFileStore filePath
+  result <- delete store key
+  close store
+  case result of
+    Right _ -> return ()
+    Left KeyNotFound -> assertFailure $ "Key " ++ show key ++ " not found for deletion"
+
+-- | Helper function to assert that a key is not found in a file
+assertKeyNotFound :: FilePath -> Word64 -> IO ()
+assertKeyNotFound filePath key = do
+  store <- newFileStore filePath
+  result <- get store key
+  close store
+  case result of
+    Right value -> assertFailure $ "Key " ++ show key ++ " found with value " ++ show value
+    Left KeyNotFound -> return ()
+
+
 
 -- Utility functions
 foldM :: Monad m => (b -> a -> m b) -> b -> [a] -> m b

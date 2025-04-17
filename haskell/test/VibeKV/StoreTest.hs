@@ -18,10 +18,10 @@ testPut :: (Store s) => String -> s -> (s -> IO ()) -> TestTree
 testPut name store cleanup = testCase (name ++ " - Put") $ do
   let key = 42
       value = 123
-  
+
   -- Put a key-value pair
   store' <- put store key value
-  
+
   -- Cleanup
   cleanup store'
 
@@ -30,27 +30,27 @@ testGet :: (Store s) => String -> s -> (s -> IO ()) -> TestTree
 testGet name store cleanup = testCase (name ++ " - Get") $ do
   let key = 42
       value = 123
-  
+
   -- Put a key-value pair
   store' <- put store key value
-  
+
   -- Get the value
   result <- get store' key
   case result of
-    Right retrievedValue -> 
+    Right retrievedValue ->
       assertEqual "Retrieved value should match original" value retrievedValue
-    Left KeyNotFound -> 
+    Left KeyNotFound ->
       assertFailure "Key should exist"
-  
+
   -- Try to get a non-existent key
   let nonExistentKey = 999
   result' <- get store' nonExistentKey
   case result' of
-    Right _ -> 
+    Right _ ->
       assertFailure "Non-existent key should not be found"
-    Left KeyNotFound -> 
+    Left KeyNotFound ->
       return ()
-  
+
   -- Cleanup
   cleanup store'
 
@@ -59,10 +59,10 @@ testDelete :: (Store s) => String -> s -> (s -> IO ()) -> TestTree
 testDelete name store cleanup = testCase (name ++ " - Delete") $ do
   let key = 42
       value = 123
-  
+
   -- Put a key-value pair
   store' <- put store key value
-  
+
   -- Delete the key
   result <- delete store' key
   case result of
@@ -70,16 +70,16 @@ testDelete name store cleanup = testCase (name ++ " - Delete") $ do
       -- Try to get the deleted key
       result' <- get store'' key
       case result' of
-        Right _ -> 
+        Right _ ->
           assertFailure "Deleted key should not be found"
-        Left KeyNotFound -> 
+        Left KeyNotFound ->
           return ()
-      
+
       -- Cleanup
       cleanup store''
-    
+
     Left KeyNotFound -> do
-      assertFailure "Key should exist for deletion"
+      _ <- assertFailure "Key should exist for deletion"
       cleanup store'
 
 -- | Test deleting a non-existent key
@@ -89,10 +89,10 @@ testDeleteNonExistentKey name store cleanup = testCase (name ++ " - Delete Non-E
   let nonExistentKey = 999
   result <- delete store nonExistentKey
   case result of
-    Right _ -> 
+    Right _ ->
       assertFailure "Non-existent key should not be deleted"
-    Left KeyNotFound -> 
+    Left KeyNotFound ->
       return ()
-  
+
   -- Cleanup
   cleanup store

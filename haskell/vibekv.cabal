@@ -13,7 +13,7 @@ library
   exposed-modules:     VibeKV.Store
                      , VibeKV.MemoryStore
                      , VibeKV.FileStore
-  build-depends:       base ^>=4.14.1.0
+  build-depends:       base ^>=4.21.0.0
                      , containers
                      , bytestring
                      , binary
@@ -31,7 +31,7 @@ test-suite vibekv-test
   other-modules:       VibeKV.StoreTest
                      , VibeKV.MemoryStoreTest
                      , VibeKV.FileStoreTest
-  build-depends:       base ^>=4.14.1.0
+  build-depends:       base ^>=4.21.0.0
                      , vibekv
                      , containers
                      , bytestring

@@ -6,6 +6,7 @@ import Test.Tasty
 import VibeKV.Store
 import VibeKV.MemoryStore
 import qualified VibeKV.StoreTest as StoreTest
+import System.IO.Unsafe (unsafePerformIO)
 
 tests :: TestTree
 tests = testGroup "MemoryStore Tests"
@@ -37,6 +38,8 @@ testDeleteNonExistentKey = withMemoryStore $ \store ->
 
 -- | Helper function to create a MemoryStore for testing
 withMemoryStore :: (MemoryStore -> TestTree) -> TestTree
-withMemoryStore f = do
-  let setup = newMemoryStore
-  f <$> setup
+withMemoryStore f = unsafePerformIO $ do
+  store <- newMemoryStore
+  return (f store)
+
+
