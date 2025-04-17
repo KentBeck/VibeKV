@@ -1,0 +1,48 @@
+cabal-version:      2.4
+name:               vibekv
+version:            0.1.0.0
+synopsis:           A durable, resilient key-value store
+description:        A durable, resilient key-value store, vibed from scratch.
+license:            MIT
+author:             Kent Beck
+maintainer:         kentlbeck@gmail.com
+category:           Database
+build-type:         Simple
+
+library
+  exposed-modules:     VibeKV.Store
+                     , VibeKV.MemoryStore
+                     , VibeKV.FileStore
+  build-depends:       base ^>=4.14.1.0
+                     , containers
+                     , bytestring
+                     , binary
+                     , filepath
+                     , directory
+                     , mtl
+                     , transformers
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+test-suite vibekv-test
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  other-modules:       VibeKV.StoreTest
+                     , VibeKV.MemoryStoreTest
+                     , VibeKV.FileStoreTest
+  build-depends:       base ^>=4.14.1.0
+                     , vibekv
+                     , containers
+                     , bytestring
+                     , binary
+                     , filepath
+                     , directory
+                     , mtl
+                     , transformers
+                     , tasty
+                     , tasty-hunit
+                     , temporary
+  hs-source-dirs:      test
+  default-language:    Haskell2010
+  ghc-options:         -Wall
